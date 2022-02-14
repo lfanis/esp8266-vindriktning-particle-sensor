@@ -43,15 +43,18 @@ char MQTT_TOPIC_AUTOCONF_AM2302_HUM_SENSOR[128];
 
 bool shouldSaveConfig = false;
 
+// DHT setup
+#include <dhtnew.h>
+static const uint8_t PIN_DHT = 12; //GPIO12 , D6  
+DHTNEW DHTSensor(PIN_DHT);   // 
+// DHT setup END 
+
+
 void saveConfigCallback() {
     shouldSaveConfig = true;
 }
 
-// DHT setup
-#include <dhtnew.h>
-static const uint8_t PIN_DHT = 12;
-DHTNEW DHTSensor(PIN_DHT);   // 
-// DHT setup END 
+
 
 void setup() {
     Serial.begin(115200);
@@ -75,7 +78,7 @@ void setup() {
     snprintf(MQTT_TOPIC_AUTOCONF_PM25_SENSOR, 127, "homeassistant/sensor/%s/%s_pm25/config", FIRMWARE_PREFIX, identifier);
     snprintf(MQTT_TOPIC_AUTOCONF_WIFI_SENSOR, 127, "homeassistant/sensor/%s/%s_wifi/config", FIRMWARE_PREFIX, identifier);
     snprintf(MQTT_TOPIC_AUTOCONF_AM2302_TEMP_SENSOR, 127, "homeassistant/sensor/%s/%s_temp/config", FIRMWARE_PREFIX, identifier);
-    snprintf(MQTT_TOPIC_AUTOCONF_AM2302_HUM_SENSOR, 127, "homeassistant/sensor/%s/%s_humv/config", FIRMWARE_PREFIX, identifier);
+    snprintf(MQTT_TOPIC_AUTOCONF_AM2302_HUM_SENSOR, 127, "homeassistant/sensor/%s/%s_hum/config", FIRMWARE_PREFIX, identifier);
 
     WiFi.hostname(identifier);
 
@@ -95,15 +98,17 @@ void setup() {
     Serial.printf("PIN_UART_RX: %d\n", SerialCom::PIN_UART_RX);
     Serial.printf("PIN_DHT: %d\n",PIN_DHT);
 
-    // DHT setup and serial output
+  // DHT setup and serial output
+  // This would be usefull if you know the skew for your sensor
   Serial.println("DHT reading raw, before Offset change");
   DHTSensor.read();
   Serial.print(DHTSensor.getHumidity(), 1);
   Serial.print("\t");
   Serial.println(DHTSensor.getTemperature(), 1);
   //DHTSensor.setHumOffset(10);
-  //  DHTSensor.setTempOffset(-3.5);
-  // DHT setup END 
+  //DHTSensor.setTempOffset(-3.5);
+ 
+  //DHT setup END 
     
     mqttReconnect();
 
@@ -303,7 +308,7 @@ void publishAutoConfig() {
     autoconfPayload["unit_of_measurement"] = "°C";
     autoconfPayload["value_template"] = "{{value_json.temp}}";
     autoconfPayload["unique_id"] = identifier + String("_temp");
-    autoconfPayload["icon"] = "mdi:dht22-temp";
+    autoconfPayload["icon"] = "mdi:dht22-temp"; // It is unlikely this icon exist in HA
 
     serializeJson(autoconfPayload, mqttPayload);
     mqttClient.publish(&MQTT_TOPIC_AUTOCONF_AM2302_TEMP_SENSOR[0], &mqttPayload[0], true);
@@ -315,9 +320,9 @@ void publishAutoConfig() {
     autoconfPayload["state_topic"] = MQTT_TOPIC_STATE;
     autoconfPayload["name"] = identifier + String(" Humidity");
     autoconfPayload["unit_of_measurement"] = "%";
-    autoconfPayload["value_template"] = "{{value_json.temp}}";
+    autoconfPayload["value_template"] = "{{value_json.hum}}";
     autoconfPayload["unique_id"] = identifier + String("_hum");
-    autoconfPayload["icon"] = "mdi:dht22-humidity";
+    autoconfPayload["icon"] = "mdi:dht22-humidity"; // it is unlikely this icon exist in HA
 
     serializeJson(autoconfPayload, mqttPayload);
     mqttClient.publish(&MQTT_TOPIC_AUTOCONF_AM2302_HUM_SENSOR[0], &mqttPayload[0], true);
