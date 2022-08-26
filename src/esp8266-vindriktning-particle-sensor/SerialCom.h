@@ -6,7 +6,7 @@
 
 namespace SerialCom {
     constexpr static const uint8_t PIN_UART_RX = 4; // D2 on Wemos D1 Mini
-    constexpr static const uint8_t PIN_UART_TX = 13; // UNUSED
+    constexpr static const uint8_t PIN_UART_TX = 13; // UNUSED and unconnected to the Wemos D1 Mini
 
     SoftwareSerial sensorSerial(PIN_UART_RX, PIN_UART_TX);
 
