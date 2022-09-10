@@ -1,3 +1,4 @@
+// Public code not up2 date yet
 #include <ArduinoJson.h>
 #include <ArduinoOTA.h>
 #include <DNSServer.h>
@@ -12,7 +13,7 @@
 #include "Types.h"
 
 particleSensorState_t state;
- 
+
 uint8_t mqttRetryCounter = 0;
 
 WiFiManager wifiManager;
@@ -57,8 +58,8 @@ static const uint8_t PIN_PIR = 20; //GPIO20 , D1
 // PIR setup END
 
 // Light sensor
-static const int PIN_LUX = A0;  // GPIO2 ESP8266 Analog Pin ADC0 = A0
-int sensorValue = 0;        // value read from sensor
+static const int PIN_LUX = A0;  // GPIO2 ESP8266 Analog Pin ADC0 = A0 . Resistor value depends on the an R2R on the board.
+int sensorValue = 0;            // value read from sensor
 int mVolt = 0;
 // Light sensor END
 
@@ -96,10 +97,10 @@ void setup() {
 
   WiFi.hostname(identifier);
 
-  
+
   //Config::load();
   Serial.printf("Config load done");
-  
+
   setupWifi();
   Serial.printf("Wifi setup done");
   setupOTA();
@@ -109,7 +110,7 @@ void setup() {
   mqttClient.setBufferSize(2048);
   mqttClient.setCallback(mqttCallback);
   Serial.printf("MQTT Client done ");
-  
+
   Serial.printf("Hostname: %s\n", identifier);
   Serial.printf("IP: %s\n", WiFi.localIP().toString().c_str());
 
@@ -168,22 +169,22 @@ void setupOTA() {
   ArduinoOTA.setPassword(identifier);
   ArduinoOTA.begin();
 }
-//XXX THIS was WRONG 
+//XXX THIS was WRONG
 int readLight() {
   sensorValue = analogRead(PIN_LUX);
   return sensorValue;
 }
 
 void loop() {
-      //DHT
-        if (millis() - DHTSensor.lastRead() > 2000)
-    {
-      DHTSensor.read();
-      Serial.print(DHTSensor.getHumidity(), 1);
-      Serial.print("\t");
-      Serial.println(DHTSensor.getTemperature(), 1);
-    }
-      // DHT end
+  //DHT
+  if (millis() - DHTSensor.lastRead() > 2000)
+  {
+    DHTSensor.read();
+    Serial.print(DHTSensor.getHumidity(), 1);
+    Serial.print("\t");
+    Serial.println(DHTSensor.getTemperature(), 1);
+  }
+  // DHT end
 
   ArduinoOTA.handle();
   SerialCom::handleUart(state);
@@ -208,7 +209,7 @@ void loop() {
 }
 
 void setupWifi() {
-  wifiManager.setDebugOutput(false);
+wifiManager.setDebugOutput(false);
   wifiManager.setSaveConfigCallback(saveConfigCallback);
 
   wifiManager.addParameter(&custom_mqtt_server);
