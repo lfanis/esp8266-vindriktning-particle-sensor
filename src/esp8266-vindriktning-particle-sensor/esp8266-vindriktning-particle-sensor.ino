@@ -1,4 +1,3 @@
-// Public code not up2 date yet
 #include <ArduinoJson.h>
 #include <ArduinoOTA.h>
 #include <DNSServer.h>
@@ -45,16 +44,20 @@ char MQTT_TOPIC_AUTOCONF_AM2302_HUM_SENSOR[128];
 char MQTT_TOPIC_AUTOCONF_PIR_SENSOR[128];
 char MQTT_TOPIC_AUTOCONF_LIGHT_SENSOR[128];
 
-
 bool shouldSaveConfig = false;
 
 // DHT setup
 static const uint8_t PIN_DHT = 12; //GPIO12 , D6
 DHTNEW DHTSensor(PIN_DHT);   //
-// DHT setup END
 
 // PIR setup
-static const uint8_t PIN_PIR = 20; //GPIO20 , D1
+static const uint8_t PIN_PIR = D1; //GPIO20 , D1
+
+// "unsigned long" for variables that hold time
+volatile boolean global_triggered = false;
+unsigned long now = millis();
+boolean startTimer = false;
+unsigned long lastTrigger = 0;        // will store last time LED was updated
 // PIR setup END
 
 // Light sensor
@@ -63,11 +66,18 @@ int sensorValue = 0;            // value read from sensor
 int mVolt = 0;
 // Light sensor END
 
+
 void saveConfigCallback() {
   shouldSaveConfig = true;
 }
 
-
+// Checks if motion was detected, sets LED HIGH and starts a timer
+ICACHE_RAM_ATTR void detectsMovement() {
+  //Serial.println("MOTION DETECTED!!!");
+  startTimer = true;
+  lastTrigger = millis();
+  global_triggered = true;
+}
 
 void setup() {
   Serial.begin(115200);
@@ -81,7 +91,7 @@ void setup() {
   Serial.printf("CPU Frequency: %u MHz\n", ESP.getCpuFreqMHz());
   Serial.printf("Reset reason: %s\n", ESP.getResetReason().c_str());
 
-  delay(3000);
+  delay(1000);
 
   snprintf(identifier, sizeof(identifier), "VINDRIKTNING-%X", ESP.getChipId());
   snprintf(MQTT_TOPIC_AVAILABILITY, 127, "%s/%s/status", FIRMWARE_PREFIX, identifier);
@@ -95,21 +105,20 @@ void setup() {
   snprintf(MQTT_TOPIC_AUTOCONF_LIGHT_SENSOR, 127, "homeassistant/sensor/%s/%s_light/config", FIRMWARE_PREFIX, identifier);
   snprintf(MQTT_TOPIC_AUTOCONF_PIR_SENSOR, 127, "homeassistant/sensor/%s/%s_pir/config", FIRMWARE_PREFIX, identifier);
 
+  // Setup HW
+  pinMode(PIN_PIR, INPUT_PULLUP);
+  attachInterrupt(digitalPinToInterrupt(PIN_PIR), detectsMovement, RISING);
+
   WiFi.hostname(identifier);
 
-
-  //Config::load();
-  Serial.printf("Config load done");
+  Config::load();
 
   setupWifi();
-  Serial.printf("Wifi setup done");
   setupOTA();
-  Serial.printf("OTA Done ");
   mqttClient.setServer(Config::mqtt_server, 1883);
   mqttClient.setKeepAlive(10);
   mqttClient.setBufferSize(2048);
   mqttClient.setCallback(mqttCallback);
-  Serial.printf("MQTT Client done ");
 
   Serial.printf("Hostname: %s\n", identifier);
   Serial.printf("IP: %s\n", WiFi.localIP().toString().c_str());
@@ -120,22 +129,7 @@ void setup() {
   Serial.printf("PIN_Light: %d\n", PIN_DHT);
   Serial.printf("PIN_PIR: %d\n", PIN_PIR);
 
-  // DHT setup and serial output
-  // This would be useful if you know the skew for your sensor
-  Serial.println("DHT reading raw, before Offset change");
-  DHTSensor.read();
-  Serial.print(DHTSensor.getHumidity(), 1);
-  Serial.print("\t");
-  Serial.println(DHTSensor.getTemperature(), 1);
-  //DHTSensor.setHumOffset(10);
-  //DHTSensor.setTempOffset(-3.5);
-  //DHT setup END
-
-  // Setup interrupt based PIR detection
-  //XXX attachInterrupt(digitalPinToInterrupt(PIN_PIR), ISR, mode);
-
   mqttReconnect();
-
 }
 
 void setupOTA() {
@@ -165,27 +159,19 @@ void setupOTA() {
 
   ArduinoOTA.setHostname(identifier);
 
-  // This is less of a security measure and more against accidental flash prevention
+  // This is less of a security measure and more a accidential flash prevention
   ArduinoOTA.setPassword(identifier);
   ArduinoOTA.begin();
 }
-//XXX THIS was WRONG
+
+
 int readLight() {
   sensorValue = analogRead(PIN_LUX);
+  mVolt = map(sensorValue, 0, 1023, 0, 3300);
   return sensorValue;
 }
 
 void loop() {
-  //DHT
-  if (millis() - DHTSensor.lastRead() > 2000)
-  {
-    DHTSensor.read();
-    Serial.print(DHTSensor.getHumidity(), 1);
-    Serial.print("\t");
-    Serial.println(DHTSensor.getTemperature(), 1);
-  }
-  // DHT end
-
   ArduinoOTA.handle();
   SerialCom::handleUart(state);
   mqttClient.loop();
@@ -205,11 +191,10 @@ void loop() {
     printf("Reconnect mqtt\n");
     mqttReconnect();
   }
-
 }
 
 void setupWifi() {
-wifiManager.setDebugOutput(false);
+  wifiManager.setDebugOutput(true);
   wifiManager.setSaveConfigCallback(saveConfigCallback);
 
   wifiManager.addParameter(&custom_mqtt_server);
@@ -258,29 +243,14 @@ bool isMqttConnected() {
   return mqttClient.connected();
 }
 
-// XXX Pull my sensor value here and serialize
-// XXX error checking ? what is that?
 void publishState() {
-
   DHTSensor.read();
 
   DynamicJsonDocument wifiJson(192);
   DynamicJsonDocument stateJson(604);
-  DynamicJsonDocument dht22Json(604);
-  DynamicJsonDocument LightJson(604); // XXX resize properly
-  DynamicJsonDocument PIRJson(604); // XXX resize properly
-
-  sensorValue = readLight();
-  mVolt = map(sensorValue, 0, 1023, 0, 3300);
-  float volt = (double)mVolt / 1000;
-  Serial.print(" sensor value = ");
-  Serial.print(sensorValue);
-  Serial.print(" | mVolt = ");
-  Serial.print(mVolt);
-  Serial.print(" | Volt = ");
-  Serial.print(volt);
-  Serial.print("\n");
-
+  DynamicJsonDocument dht22Json(512);
+  DynamicJsonDocument LightJson(128); // XXX resize properly https://arduinojson.org/v6/assistant/
+  DynamicJsonDocument PIRJson(256); // XXX resize properly
 
   char payload[256];
 
@@ -291,13 +261,33 @@ void publishState() {
   dht22Json["temp"] = DHTSensor.getTemperature();
   dht22Json["hum"] = DHTSensor.getHumidity();
 
-  //XXX Need to read the global state
-  //    PIRJson["Triggered"]=
+  // Read light sensor 
+  //float volt = (double)mVolt / 1000;
+  sensorValue = readLight();  // This is ugly, the result is effectively mV
+
+  now = millis();
+  // Set triggered state to 0 after the number of seconds defined, i used 6 as the "high" value for the PIR sensor is 5.92Seconds, and it has a relatively long second detection state
+  if (startTimer && (now - lastTrigger > (6 * 1000))) {
+    //Serial.println("Motion no longer detected...");
+    global_triggered = false;
+    startTimer = false;
+  }
+  else {
+    global_triggered = true;
+  }
+
+  LightJson["mV"] = sensorValue;
+  PIRJson["Triggered"] = global_triggered;
+  PIRJson["PinStt"] = digitalRead(PIN_PIR);
+  //  PIRJson["startTmr"] = startTimer;
+  //  PIRJson["lasttrg"] = lastTrigger;
+  //  PIRJson["now"] = now;
 
   stateJson["pm25"] = state.avgPM25;
-
   stateJson["wifi"] = wifiJson.as<JsonObject>();
   stateJson["dht22"] = dht22Json.as<JsonObject>();
+  stateJson["Lux"] = LightJson.as<JsonObject>();
+  stateJson["Presence"] = PIRJson.as<JsonObject>();
 
   serializeJson(stateJson, payload);
   mqttClient.publish(&MQTT_TOPIC_STATE[0], &payload[0], true);
@@ -315,10 +305,10 @@ void publishAutoConfig() {
   identifiers.add(identifier);
 
   device["identifiers"] = identifiers;
-  device["manufacturer"] = "Ikea";
+  device["manufacturer"] = "Hacked-Ikea";
   device["model"] = "VINDRIKTNING";
   device["name"] = identifier;
-  device["sw_version"] = "2022.07.0";
+  device["sw_version"] = "2022.08.27";
 
   autoconfPayload["device"] = device.as<JsonObject>();
   autoconfPayload["availability_topic"] = MQTT_TOPIC_AVAILABILITY;
@@ -349,9 +339,11 @@ void publishAutoConfig() {
   mqttClient.publish(&MQTT_TOPIC_AUTOCONF_PM25_SENSOR[0], &mqttPayload[0], true);
 
   autoconfPayload.clear();
+
   // DHT code starts here
   // Added 2 "sensor" temp and humidity that are now properly advertised.
-
+  // XXX This should have autoconfPayload["json_attributes_template"] = "{\"temperature\": \"{{value_json.dht22.temp}}\", \"humidity\": \"{{value_json.dht22.hum}}\"}"; and map the same way as WIFI
+  // If you use home assistante send patch
   autoconfPayload["device"] = device.as<JsonObject>();
   autoconfPayload["availability_topic"] = MQTT_TOPIC_AVAILABILITY;
   autoconfPayload["state_topic"] = MQTT_TOPIC_STATE;
@@ -379,5 +371,39 @@ void publishAutoConfig() {
   mqttClient.publish(&MQTT_TOPIC_AUTOCONF_AM2302_HUM_SENSOR[0], &mqttPayload[0], true);
 
   autoconfPayload.clear();
+
+  // Do light here
+  // this is very very ugly, we are not really converting to Lux only listing mill volt, a real lux meter is too hard, usefullness will be pulled form the data
+  autoconfPayload["device"] = device.as<JsonObject>();
+  autoconfPayload["availability_topic"] = MQTT_TOPIC_AVAILABILITY;
+  autoconfPayload["state_topic"] = MQTT_TOPIC_STATE;
+  autoconfPayload["name"] = identifier + String(" Light");
+  autoconfPayload["unit_of_measurement"] = "mV";
+  autoconfPayload["value_template"] = "{{value_json.Lux}}";
+  autoconfPayload["unique_id"] = identifier + String("_light");
+  autoconfPayload["icon"] = "mdi:Lux"; // it is unlikely this icon exist in HA
+
+  serializeJson(autoconfPayload, mqttPayload);
+  mqttClient.publish(&MQTT_TOPIC_AUTOCONF_LIGHT_SENSOR[0], &mqttPayload[0], true);
+
+  autoconfPayload.clear();
+
+  // PIR sensor here
+  // XXX this is ugly all of this is ugly
+  // there is an error 
+  autoconfPayload["device"] = device.as<JsonObject>();
+  autoconfPayload["availability_topic"] = MQTT_TOPIC_AVAILABILITY;
+  autoconfPayload["state_topic"] = MQTT_TOPIC_STATE;
+  autoconfPayload["name"] = identifier + String(" Triggered");
+  autoconfPayload["unit_of_measurement"] = "Y/N";
+  autoconfPayload["value_template"] = "{{value_json.Presence}}";
+  autoconfPayload["unique_id"] = identifier + String("_trig");
+  autoconfPayload["icon"] = "mdi:PIR"; // it is unlikely this icon exist in HA
+
+  serializeJson(autoconfPayload, mqttPayload);
+  mqttClient.publish(&MQTT_TOPIC_AUTOCONF_PIR_SENSOR[0], &mqttPayload[0], true);
+
+  autoconfPayload.clear();
+
 
 }

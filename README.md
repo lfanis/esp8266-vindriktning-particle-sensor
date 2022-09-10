@@ -3,14 +3,14 @@
 
 This repository contains an ESP8266 firmware based of [esp8266-vindriktning-particle-sensor](https://github.com/Hypfer/esp8266-vindriktning-particle-sensor), which adds:
 - Humidity + Temperature Sensor
-- PIR presence detection 
+- PIR presence detection
 - Ambient light via embedded light detection
-- air quality sensor via the Ikea VINDRIKTNING PM2.5 sensor
-- MQTT the above sensors 
-The modification does not, at least should not, interfere with normal operation of the device in any way.
-The ESP8266 just adds another data sink. The LED are still only reflecting air quality.
+- Air quality sensor via the Ikea VINDRIKTNING PM2.5 sensor
+- MQTT the above sensors
 
-![half_assembled](./img/half-assembled.jpg) 
+The modification does not, at least should not, interfere with normal operation of the device in any way.
+
+![half_assembled](./img/half-assembled.jpg)
 
 Home Assistant Auto-discovery is supported.
 Furthermore, the WifiManager library is used for on-the-fly configuration.
@@ -27,11 +27,11 @@ To extend your air quality sensor, you will need
 - Some short dupont cables
 - A soldering iron
 - A long PH0 Screwdriver (e.g. Wera 118022)
-- A DHT-22 / AM2302 
-- A PIR sensor MH-SR602 or any with digital output
+- A DHT-22 / AM2302
+- A pir sensor such as MH-SR602 or any with digital output
 
 Fortunately, there is a lot of unused space in the enclosure, which is perfect for our ESP8266.
-Also, everything we need is accessible via easy to solder test points.
+Also, everything we need is accessible via easy to solder testpoints.
 
 ## Hardware
 
@@ -45,17 +45,23 @@ of accidentally melting some plastic.
 
 As you can see in this image, you'll need to solder wires to GND, 5V and the Testpoint that is connected to TX of the
 Particle Sensor.
-If you want to use the average light sensor LED_R_1 test point into a 180K Ohm then into A0 if you are using a D1 Mini or any ESP with a voltage divider. Otherwise you need to provide your own voltage divider.
 
 Then just connect these Wires:
 GND -> GND
-5V -> VIN (5V) 
+5V -> VIN (5V)
 REST Testpoint -> D2 (if you're using a Wemos D1 Mini).
-LED_R_! -> 180kOhm into A0 
-PIR output -> D1 
-DHT output -> D6 
+LED_R_! -> 180kOhm into A0
+PIR output -> D1
+DHT output -> D6
+
+To use the average light sensor LED_R_1 test point into a 180K Ohm then into A0 (this is only about Wemos D1) for other ESP you need to calculate the R2R values as the onboard ASC is usually 0-1V but the Wemos D1 is 0-3.3V.
 
 Done.
+
+### The other connections
+- DHT sensor goes to the back, get powered by 5V and data via GPIO12/D6
+- PIR sensor goes at the front, get powered by 5V (check if it is 5V tolerent) and data via GPIO20/D1 you need to also check the data sheet for timing as it will be needed in the code
+- Connection to the light sensor goes to analogue pin / ADC0 / A0 . Resistor value depends on the an R2R on the board. This is dependent on the resistor leader on the ESP, for the Wemos as it already has a divider to get from 0-1V to 0-3.2V range to extend that 0-5V I needed to add about 100kOhm per volt over 3.2V so in this case for me its 180kOhm. 
 
 ## Software
 
@@ -69,7 +75,7 @@ Furthermore, you will also need to install the following libraries using the Lib
 * ArduinoJSON 6.10.1
 * PubSubClient 2.8.0
 * WiFiManager 0.15.0
-* DHTNew 0.4.12 
+* DHTNew 0.4.12
 
 Just build, flash, and you're done.
 
