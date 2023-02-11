@@ -42,19 +42,20 @@ in-place, however personally, I'd recommend taking the board out of there since 
 of accidentally melting some plastic.
 
 ![board](./img/board.jpg)
+XXX I really should put a better / more detailed picture then the original one.
 
 As you can see in this image, you'll need to solder wires to GND, 5V and the Testpoint that is connected to TX of the
 Particle Sensor.
 
 Then just connect these Wires:
-GND -> GND
-5V -> VIN (5V)
-REST Testpoint -> D2 (if you're using a Wemos D1 Mini).
-LED_R_! -> 180kOhm into A0
-PIR output -> D1
-DHT output -> D6
+- GND -> GND
+- 5V -> VIN (5V)
+- REST Testpoint -> D2 (if you're using a Wemos D1 Mini).
+- LED_R_! -> 180kOhm into A0
+- PIR output -> D1
+- DHT output -> D6
 
-To use the average light sensor LED_R_1 test point into a 180K Ohm then into A0 (this is only about Wemos D1) for other ESP you need to calculate the R2R values as the onboard ASC is usually 0-1V but the Wemos D1 is 0-3.3V.
+To use the average light sensor LED_R_1 test point into a 180K Ohm then into A0 (this is only about Wemos D1) for other ESP you need to calculate the R2R values as the onboard ADC is usually 0-1V but the Wemos D1 is 0-3.3V.
 
 Done.
 
